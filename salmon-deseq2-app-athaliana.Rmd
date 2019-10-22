@@ -1,0 +1,105 @@
+---
+title: "Salmon Tutorial DESeq2 Application"
+author: "Prisma Erika Lopez Jimenez"
+date: "9/28/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r installations, include=FALSE}
+### Install required packages:
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+library(tximport)
+library(tximportData)
+#library(TxDb.Athaliana.BioMart.plantsmart22)
+#tinytex:::is_tinytex() # to load latexMactex for windows
+#isTRUE(tinytex:::is_tinytex()) # must be true for functionality
+library(biomaRt)
+library(org.At.tair.db)
+library(TxDb.Athaliana.BioMart.plantsmart28)
+library(biomartr)
+library(xml2)
+#library(TxDb.Athaliana.BioMart.plantsmart25)
+library(ensembldb)
+library(AnnotationHub)
+library(GenomicFeatures)
+library(GenomicRanges)
+library(jsonlite)
+library(DESeq2)
+
+```
+
+```{r}
+### Load the quant.sf files as `files` and the sample folders as `folders`
+# dir # set the working directory and `dir` as location of quant folders
+# "C:/Users/PELJ/Dropbox/bioinformatics/salmon_tutorial/quants"
+setwd("C:/Users/PELJ/Dropbox/bioinformatics/software/salmon/salmon_tutorial/quants")
+dir=getwd()
+folders=list.files(file.path(dir))
+files <- file.path(dir,folders, "quant.sf")
+names(files)=paste0("sample",1:2)
+all(file.exists(files)) # check 
+```
+
+```{r}
+### Inspect the biomaRt database: TxDb.Athaliana.BioMart.plantsmart28
+### Apparenetly, correct database -- finally!
+### Also, shortcut to building a tx2gene
+
+txdb=TxDb.Athaliana.BioMart.plantsmart28 # txdb object
+columns(txdb)
+keytypes(txdb)
+k <- keys(txdb, keytype="TXNAME")
+tx2gene <- select(txdb, k, "GENEID", "TXNAME")
+#tx2gene
+#genes=genes(txdb) # GRanges object 
+#genes$gene_id # access GRances object Ref: https://kasperdanielhansen.github.io/genbioconductor/html/GenomicRanges_GRanges_Usage.html
+```
+
+```{r}
+txi <- tximport(files, type="salmon", tx2gene=tx2gene)
+samples <- read.table(file.path("C:/Users/PELJ/Dropbox/bioinformatics/software/salmon/","samples.txt"), header=TRUE)
+samples
+dds <- DESeqDataSetFromTximport(txi, samples, ~1) # can't right now because only two samples
+keep <- rowSums(counts(dds) >= 5) >= 4
+
+# option:
+#table(keep)
+#boxplot(log10(counts(dds)+1))
+# Alt:
+dds <- estimateSizeFactors(dds)
+boxplot(log10(counts(dds,normalized=TRUE)+1))
+dds.de = DESeq(dds)
+results(dds.de)
+
+vsd <- vst(dds)
+assay(vsd)[1:2,1:2]
+```
+
+```{r}
+### References:
+## Refer to .Rmd file: Intro to transcript/genome annotations access
+## introductory chunks
+# https://combine-lab.github.io/salmon/getting_started/ # main salmon page
+# https://bioconductor.github.io/BiocWorkshops/rna-seq-data-analysis-with-deseq2.html # 
+# http://127.0.0.1:31884/library/tximport/doc/tximport.html #importing quant.sf files reference
+# https://bioconductor.org/packages/devel/bioc/vignettes/GenomicFeatures/inst/doc/GenomicFeatures.pdf 
+
+# https://bioconductor.riken.jp/packages/3.0/data/annotation/ # package list names for access to transcript annotations for A. thaliana and other species
+# https://ropensci.github.io/biomartr/articles/Functional_Annotation.html # Guide to access plants (athaliana) database w/ code using biomartr package -- NICE!
+
+
+## Database access options using AnnotationHub (Bioconductor Forums)
+# https://support.bioconductor.org/p/115371/
+# https://support.bioconductor.org/p/109092/
+# https://support.bioconductor.org/p/111536/
+# https://davetang.org/muse/2017/08/08/getting-started-arabidopsis-thaliana-genomics/ # get contents of org.At.tair.db database NOT accessible using AnnotationHub package NOTE: RELEVANT PACKAGE is the plantsmart28
+
+## Database access options using Ensembl
+# http://127.0.0.1:23132/library/ensembldb/doc/ensembldb.html
+# https://support.bioconductor.org/p/104194/
+# https://support.bioconductor.org/t/ensembldb/ # bioconductor post forums 
+```
